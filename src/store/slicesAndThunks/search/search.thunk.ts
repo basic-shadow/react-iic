@@ -2,11 +2,12 @@ import { createAsyncThunk } from "@reduxjs/toolkit";
 import { searchQueryGql } from "../../../services/query/searchQuery";
 import { ISearchQueryParams } from "../../../ts/interfaces/search.interface";
 
+const url = "https://graphql.anilist.co";
+
 export const searchListThunk = createAsyncThunk(
   "searchListThunk",
   async (variables: ISearchQueryParams, thunkAPI) => {
     try {
-      var url = "https://graphql.anilist.co";
       const options = {
         method: "POST",
         headers: {
