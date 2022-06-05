@@ -18,59 +18,32 @@ import { useAppDispatch, useTypedSelector } from "../hooks/reduxHooks";
 import { fetchFavorites } from "../store/slicesAndThunks/favorites/favorites.slice";
 import { ArrowIcon } from "../assets/icons/ArrowIcon";
 import { FavoriteCard } from "../components/Card/FavoriteCard";
-import {
-  IMediaData,
-  IPage,
-  IResponseData,
-} from "../ts/interfaces/search.interface";
-import { searchQueryGql } from "../services/query/searchQuery";
 import useDebounce from "../hooks/debounceHook";
-
-var url = "https://graphql.anilist.co";
+import { searchListThunk } from "../store/slicesAndThunks/search/search.thunk";
+import { clearSearchData } from "../store/slicesAndThunks/search/search.slice";
 
 interface IProps {}
-
-const initialData = {
-  pageInfo: {
-    total: 0,
-    currentPage: 0,
-    lastPage: 0,
-    hasNextPage: false,
-    perPage: 0,
-  },
-  media: [],
-};
 
 export const MainPage: React.FC<IProps> = (props) => {
   // loading
   const [loading, setLoading] = useState(false);
-  // page
-  const [currentPage, setCurrentPage] = useState(0);
   // search
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [searchList, setSearchList] = useState<{ Page: IResponseData }>({
-    Page: initialData,
-  });
-  const [mediaList, setMediaList] = useState<IMediaData[]>([]);
+  // data redux
+  const searchData = useTypedSelector((state) => state.search);
   // custom hooks
   const debouncedQuery = useDebounce(searchQuery, 150);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("xs"));
-
   // favorites
   const favorites = useTypedSelector((state) => state.favorites);
   const dispatch = useAppDispatch();
-
-  const clearSearch = () => {
-    setSearchList({ Page: initialData });
-    setMediaList([]);
-  };
 
   useEffect(() => {
     if (!debouncedQuery.trim().length) return;
 
     const handler = setTimeout(() => {
-      clearSearch();
+      dispatch(clearSearchData());
       fetchData();
     }, 800);
 
@@ -79,51 +52,25 @@ export const MainPage: React.FC<IProps> = (props) => {
     };
   }, [debouncedQuery]);
 
-  const fetchData = () => {
-    setLoading(true);
-    const variables = {
-      search: debouncedQuery,
-      page: currentPage + 1 || 1,
-      perPage: 3,
-    };
-    const options = {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        query: searchQueryGql,
-        variables,
-      }),
-    };
-
-    fetch(url, options)
-      .then(handleResponse)
-      .then(handleData)
-      .catch(handleError)
-      .finally(() => setLoading(false));
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const variables = {
+        search: debouncedQuery,
+        page: searchData?.pageInfo.currentPage + 1 || 1,
+        perPage: 3,
+      };
+      await dispatch(searchListThunk(variables));
+    } catch (error: any) {
+      console.error("err = ", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useLayoutEffect(() => {
     dispatch(fetchFavorites());
   }, []);
-
-  function handleResponse(response: any) {
-    return response.json().then(function (json: any) {
-      return response.ok ? json?.data : Promise.reject(json);
-    });
-  }
-
-  function handleData(data: any) {
-    setSearchList(data);
-    setCurrentPage(data?.Page?.pageInfo?.currentPage);
-    setMediaList((prev) => [...prev, ...data?.Page?.media]);
-  }
-
-  function handleError(error: any) {
-    console.error("err = ", error);
-  }
 
   return (
     <Box
@@ -182,7 +129,7 @@ export const MainPage: React.FC<IProps> = (props) => {
                   style={{ height: "18px", cursor: "pointer" }}
                   onClick={() => {
                     setSearchQuery("");
-                    clearSearch();
+                    dispatch(clearSearchData());
                   }}
                 />
               </InputAdornment>
@@ -197,8 +144,8 @@ export const MainPage: React.FC<IProps> = (props) => {
           spacing={2}
           sx={{ width: isMobile ? "calc(100% + 40px)" : "inherit" }}
         >
-          {!!mediaList.length &&
-            mediaList.map((items) => {
+          {!!searchData.media.length &&
+            searchData.media.map((items) => {
               return (
                 <MyCard
                   key={items.id}
@@ -214,34 +161,31 @@ export const MainPage: React.FC<IProps> = (props) => {
             })}
         </Grid>
 
-        {!!debouncedQuery.trim().length &&
-          searchList.Page?.pageInfo?.hasNextPage && (
-            <React.Fragment>
-              {/* SEARCH MORE */}
-              <Button
-                sx={{
-                  backgroundColor: "#00CC99",
-                  width: "min-content",
-                  padding: "10px 24px",
-                  color: "#000",
-                  margin: "24px 0",
+        {!!debouncedQuery.trim().length && searchData.pageInfo?.hasNextPage && (
+          <React.Fragment>
+            {/* SEARCH MORE */}
+            <Button
+              sx={{
+                backgroundColor: "#00CC99",
+                width: "min-content",
+                padding: "10px 24px",
+                color: "#000",
+                margin: "24px 0",
+              }}
+              onClick={fetchData}
+            >
+              <span style={{ marginRight: "10px", fontWeight: 700 }}>More</span>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
                 }}
-                onClick={fetchData}
               >
-                <span style={{ marginRight: "10px", fontWeight: 700 }}>
-                  More
-                </span>
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <ArrowIcon />
-                </span>
-              </Button>
-            </React.Fragment>
-          )}
+                <ArrowIcon />
+              </span>
+            </Button>
+          </React.Fragment>
+        )}
         {/* LIKED DATA */}
         {favorites.length > 0 && (
           <React.Fragment>

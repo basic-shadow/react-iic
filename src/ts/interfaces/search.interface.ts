@@ -1,6 +1,7 @@
 export interface ISearchQueryParams {
-  id?: number;
-  search?: string;
+  search: string;
+  page: number;
+  perPage: number;
 }
 
 export interface IMediaData {
